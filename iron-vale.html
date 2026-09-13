@@ -1,0 +1,1828 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>钢铁谷地 · Iron Vale — 2D 即时战略</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0d1512; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    color: #e9f2ec; user-select: none;
+  }
+  #cv { position: fixed; inset: 0; display: block; cursor: crosshair; }
+
+  .panel {
+    position: fixed; background: linear-gradient(#141d19f2, #0d1310f2);
+    border: 1px solid #2c4034; border-radius: 10px;
+    box-shadow: 0 6px 24px #0009, inset 0 1px 0 #ffffff10;
+    backdrop-filter: blur(4px);
+  }
+
+  /* ---------- 顶栏 ---------- */
+  #topbar {
+    left: 10px; top: 10px; height: 48px; display: flex; align-items: center;
+    gap: 16px; padding: 0 14px; font-size: 14px;
+  }
+  .res { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+  .res b { color: #ffd76a; font-weight: 700; min-width: 44px; display: inline-block; }
+  .res.pop b { color: #8fe3a8; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px currentColor; }
+  #topbar .sep { width: 1px; height: 24px; background: #2c4034; }
+  .mini-btn {
+    background: #1d2b23; color: #cfe6d9; border: 1px solid #33493c; border-radius: 7px;
+    padding: 5px 10px; font-size: 13px; cursor: pointer;
+  }
+  .mini-btn:hover { background: #263a2f; border-color: #4d6a58; }
+  .mini-btn.on { background: #2f5a3f; border-color: #5c9b73; color: #eafff2; }
+
+  /* ---------- 右侧指令面板 ---------- */
+  #cmdpanel {
+    right: 10px; top: 10px; width: 316px; max-height: calc(100% - 20px);
+    overflow-y: auto; padding: 12px;
+  }
+  #cmdpanel::-webkit-scrollbar { width: 8px; }
+  #cmdpanel::-webkit-scrollbar-thumb { background: #2c4034; border-radius: 4px; }
+  #selhead { font-size: 15px; font-weight: 700; margin-bottom: 2px; letter-spacing: .3px; }
+  #selhead .team-p { color: #6fd3ff; }
+  #selhead .team-e { color: #ff8b8b; }
+  #selinfo { font-size: 12px; color: #9fb5a8; margin-bottom: 8px; min-height: 16px; }
+  #selrows { font-size: 12px; color: #cfe6d9; margin-bottom: 10px; display: none; }
+  #selrows .row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px dashed #22302606; }
+  #selrows .row span:last-child { color: #ffd76a; font-variant-numeric: tabular-nums; }
+
+  .hint { font-size: 12px; line-height: 1.5; color: #8ea79a; }
+  .gb { margin-bottom: 12px; }
+  .gb h4 {
+    margin: 0 0 6px; font-size: 12px; font-weight: 600; color: #7fb894;
+    letter-spacing: .6px; text-transform: uppercase;
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .btn {
+    background: linear-gradient(#22322a, #182420);
+    border: 1px solid #34493c; border-radius: 8px; padding: 7px 8px; cursor: pointer;
+    text-align: left; color: #e9f2ec; font-family: inherit; position: relative; overflow: hidden;
+    transition: border-color .12s, transform .06s;
+  }
+  .btn:hover:not(:disabled) { border-color: #6fd3ff; transform: translateY(-1px); }
+  .btn:active:not(:disabled) { transform: translateY(0); }
+  .btn:disabled { opacity: .42; cursor: not-allowed; }
+  .btn .nm { display: block; font-size: 13px; font-weight: 600; }
+  .btn .cst { display: block; font-size: 11px; color: #ffd76a; margin-top: 2px; }
+  .btn .cst.no { color: #ff9c9c; }
+  .btn .sub { display: block; font-size: 10px; color: #8ea79a; margin-top: 3px; line-height: 1.35; }
+  .btn.wide { grid-column: 1 / -1; }
+  .btn .bar {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+    background: #6fd3ff22; pointer-events: none;
+  }
+  .btn.primary { background: linear-gradient(#2c5238, #1e3627); border-color: #4d7f5f; }
+
+  /* ---------- 小地图 ---------- */
+  #mini {
+    left: 10px; bottom: 10px; width: 208px; height: 208px; padding: 6px; overflow: hidden;
+  }
+  #minicv { width: 100%; height: 100%; display: block; border-radius: 6px; cursor: pointer; }
+  #minilbl {
+    position: absolute; top: -22px; left: 0; font-size: 11px; color: #7fb894; letter-spacing: .5px;
+  }
+
+  /* ---------- 底部信息条 ---------- */
+  #trace {
+    left: 232px; bottom: 10px; padding: 8px 14px; font-size: 12.5px; color: #b9cfc2;
+    max-width: calc(100% - 580px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #trace b { color: #ffd76a; }
+  #trace .warn { color: #ff9c9c; font-weight: 600; }
+
+  /* ---------- 弹窗 ---------- */
+  .overlay {
+    position: fixed; inset: 0; background: #050a08d9; display: flex;
+    align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  .overlay.hidden { display: none; }
+  .card {
+    max-width: 720px; width: 100%; max-height: 90vh; overflow-y: auto;
+    background: linear-gradient(#16211b, #0e1613); border: 1px solid #365043;
+    border-radius: 14px; padding: 26px 30px; box-shadow: 0 20px 60px #000c;
+  }
+  .card h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: 1px; }
+  .card h1 small { font-size: 13px; color: #7fb894; letter-spacing: 2px; font-weight: 400; }
+  .card h2 { font-size: 15px; color: #8fe3a8; margin: 18px 0 8px; }
+  .card p, .card li { font-size: 13.5px; line-height: 1.7; color: #cfe6d9; }
+  .card ul { padding-left: 20px; margin: 6px 0; }
+  .card kbd {
+    background: #26382e; border: 1px solid #3c5748; border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 7px; font-size: 12px; font-family: inherit; color: #eafff2;
+  }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 26px; }
+  .card .go {
+    margin-top: 22px; display: block; width: 100%; padding: 13px;
+    font-size: 15px; font-weight: 700; letter-spacing: 1px; cursor: pointer;
+    background: linear-gradient(#3e7a52, #2a5539); color: #eafff2;
+    border: 1px solid #65a67f; border-radius: 10px; font-family: inherit;
+  }
+  .card .go:hover { filter: brightness(1.12); }
+  .tip { color: #ffd76a; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="topbar" class="panel">
+  <div class="res"><span class="dot" style="background:#ffd76a;color:#ffd76a"></span>黄金 <b id="rgold">300</b></div>
+  <div class="res pop"><span class="dot" style="background:#8fe3a8;color:#8fe3a8"></span>人口 <b id="rpop">0/10</b></div>
+  <div class="sep"></div>
+  <div class="res">⏱ <b id="rtime" style="color:#cfe6d9">00:00</b></div>
+  <div class="sep"></div>
+  <button class="mini-btn" id="btnSpeed">速度 1×</button>
+  <button class="mini-btn" id="btnPause">暂停</button>
+  <button class="mini-btn" id="btnHelp">帮助 H</button>
+</div>
+
+<div id="cmdpanel" class="panel">
+  <div id="selhead">未选择单位</div>
+  <div id="selinfo">框选你的单位下达命令</div>
+  <div id="selrows"></div>
+  <div id="cmd"></div>
+</div>
+
+<div id="mini" class="panel">
+  <div id="minilbl">战场地图</div>
+  <canvas id="minicv"></canvas>
+</div>
+
+<div id="trace" class="panel">用 <b>鼠标左键框选</b> 工人 → <b>右键点金矿</b> 开始采集。按 <b>H</b> 查看完整帮助。</div>
+
+<div class="overlay" id="startScreen">
+  <div class="card">
+    <h1>钢铁谷地 <small>IRON VALE</small></h1>
+    <p class="hint">2D 即时战略 · 单文件 · 无需联网</p>
+    <h2>目标</h2>
+    <p>摧毁 <span style="color:#ff8b8b">红色敌军</span> 的所有建筑即可获胜；你的建筑被全部摧毁则失败。</p>
+    <h2>操作</h2>
+    <div class="cols">
+      <ul>
+        <li><kbd>左键拖拽</kbd> 框选单位</li>
+        <li><kbd>左键点单位</kbd> 单选</li>
+        <li><kbd>右键点地面</kbd> 移动</li>
+        <li><kbd>右键点金矿</kbd> 工人去采集</li>
+        <li><kbd>右键点敌人</kbd> 攻击</li>
+        <li><kbd>右键点自家建筑</kbd> 工人去修理</li>
+      </ul>
+      <ul>
+        <li><kbd>A</kbd> 攻击移动（点地面）</li>
+        <li><kbd>S</kbd> 停止 · <kbd>H</kbd> 全选部队</li>
+        <li><kbd>E</kbd> 所有工人回城采集</li>
+        <li><kbd>P</kbd> 暂停 · <kbd>1..9</kbd> 建造快捷键</li>
+        <li><kbd>方向键</kbd> / 屏幕边缘 移动视角</li>
+        <li><kbd>滚轮</kbd> 缩放 · <kbd>Esc</kbd> 取消当前操作</li>
+      </ul>
+    </div>
+    <h2>开局思路</h2>
+    <ul>
+      <li>先把 4 个工人点到金矿上，让收入跑起来。</li>
+      <li>花 <b>150 金</b> 造 <b>兵营</b>，然后爆 <b>剑士</b> 顶前排、<b>弓箭手</b> 站后面。</li>
+      <li>人口上限靠 <b>房舍</b> 提升，别卡在 10 人口。</li>
+      <li>敌军会一波波进攻，早点在基地北面造 <b>箭塔</b> 很划算。</li>
+    </ul>
+    <button class="go" id="btnStart">开始战斗</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="endScreen">
+  <div class="card" style="text-align:center">
+    <h1 id="endTitle">胜利</h1>
+    <p id="endSub" class="hint"></p>
+    <button class="go" id="btnAgain">再来一局</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function () {
+// ============================================================================
+//  钢铁谷地 Iron Vale — 2D RTS（单文件实现）
+// ============================================================================
+const TS = 32, MAPW = 2600, MAPH = 2000;
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const minicv = document.getElementById('minicv');
+const mctx = minicv.getContext('2d');
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+let W = 0, H = 0;
+
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const dist2 = (a, b) => (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// ---------------------------------------------------------------------------
+//  数据表
+// ---------------------------------------------------------------------------
+const UNITS = {
+  worker: { name: '工人', hp: 60, speed: 78, r: 9, tr: 1, cost: 50, pop: 1, btime: 8,
+            dmg: 3, range: 0.5, cd: 1.1, desc: '采集黄金、建造与维修建筑' },
+  sword:  { name: '剑士', hp: 130, speed: 68, r: 10, tr: 1, cost: 80, pop: 1, btime: 10,
+            dmg: 12, range: 0.6, cd: 1.0, aggro: 6, desc: '近战肉盾，冲锋在前' },
+  archer: { name: '弓箭手', hp: 75, speed: 72, r: 9, tr: 5.6, cost: 100, pop: 1, btime: 12,
+            dmg: 14, range: 5.6, cd: 1.5, aggro: 7, desc: '远程输出，脆皮需保护' },
+  knight: { name: '重装骑士', hp: 270, speed: 82, r: 12, tr: 1, cost: 180, pop: 2, btime: 18,
+            dmg: 30, range: 0.8, cd: 1.2, aggro: 7, desc: '重甲单位，克制弓箭手' },
+  war:    { name: '战争机器', hp: 420, speed: 40, r: 16, tr: 8, cost: 320, pop: 3, btime: 36,
+            dmg: 70, range: 8, cd: 4.0, aggro: 9, desc: '超远程攻城，对建筑伤害翻倍' }
+};
+const BUILDS = {
+  hall:   { name: '城镇大厅', hp: 900, size: 3, cost: 320, pop: 10, btime: 30, desc: '提供 10 人口，可生产工人' },
+  house:  { name: '房舍',     hp: 260, size: 1, cost: 60,  pop: 5,  btime: 10, desc: '提高 5 人口上限' },
+  tower:  { name: '箭塔',     hp: 380, size: 1, cost: 120, pop: 0,  btime: 16,
+            dmg: 18, range: 7.2, cd: 1.1, aggro: 8, desc: '自动攻击范围内敌人' },
+  barracks: { name: '兵营',   hp: 620, size: 2, cost: 150, pop: 0,  btime: 22, desc: '生产全部作战单位' }
+};
+const BUILDBTN = [
+  { key: 'house', hot: '1' }, { key: 'barracks', hot: '2' },
+  { key: 'tower', hot: '3' }, { key: 'hall', hot: '4' }
+];
+const PRODBTN = {
+  hall: [{ key: 'worker', hot: '1' }],
+  barracks: [
+    { key: 'sword', hot: '1' }, { key: 'archer', hot: '2' },
+    { key: 'knight', hot: '3' }, { key: 'war', hot: '4' }
+  ]
+};
+const ENEMY_SCALE = { hp: 0.9, dmg: 0.88 };
+const SOLDIERS = { sword: 1, archer: 1, knight: 1, war: 1 };
+
+// ---------------------------------------------------------------------------
+//  游戏状态
+// ---------------------------------------------------------------------------
+let G = null;
+let cam = { x: 0, y: 0, zoom: 1 };
+let keys = Object.create(null);
+let mouse = { x: 0, y: 0, down: false, sx: 0, sy: 0, dragging: false, rdrag: false, mid: false };
+let nextId = 1;
+let terrain = null, miniBase = null, decor = [];
+
+function newGame() {
+  nextId = 1;
+  decor = [];
+  const rnd = mulberry32(20240613);
+  for (let i = 0; i < 260; i++) {
+    decor.push({ x: 60 + rnd() * (MAPW - 120), y: 60 + rnd() * (MAPH - 120), t: rnd() < 0.45 ? 'bush' : 'rock', s: 0.7 + rnd() * 0.8 });
+  }
+  G = {
+    t: 0, over: 0, endText: '', endSub: '',
+    speed: 1, paused: false,
+    ents: [], nodes: [], sel: [], psel: null, ghosts: [],
+    placing: null, attackMove: false, fx: [], nextFx: 0,
+    team: {
+      p: { gold: 320, pop: 0, popCap: 10, aiTimer: 0, gatherPulse: 0 },
+      e: { gold: 340, pop: 0, popCap: 10, aiTimer: 0, gatherPulse: 0 }
+    },
+    ebase: { x: 2140, y: 420 }, pbase: { x: 460, y: 1580 },
+    msg: '', wave: 0
+  };
+  // 金矿：双方基地附近各两处，中间三处
+  const spots = [
+    [720, 1420], [700, 1720], [2380, 640], [2400, 320],
+    [1300, 1050], [1180, 720], [1720, 1300], [2080, 1560], [460, 900], [900, 500], [1600, 300], [2000, 1080]
+  ];
+  for (const s of spots) {
+    G.nodes.push({ id: nextId++, x: s[0], y: s[1], r: 20, amount: 1600 + Math.round(rnd() * 900) });
+  }
+  // 玩家
+  spawnBuilding('hall', 'p', G.pbase.x, G.pbase.y);
+  spawnBuilding('barracks', 'p', G.pbase.x - 118, G.pbase.y + 96);
+  for (let i = 0; i < 4; i++) {
+    const a = -Math.PI / 2 + (i - 1.5) * 0.45;
+    spawnUnit('worker', 'p', G.pbase.x + Math.cos(a) * 76, G.pbase.y + 52 + Math.sin(a) * 20);
+  }
+  // 敌方
+  spawnBuilding('hall', 'e', G.ebase.x, G.ebase.y);
+  spawnBuilding('barracks', 'e', G.ebase.x + 120, G.ebase.y + 92);
+  spawnBuilding('tower', 'e', G.ebase.x - 86, G.ebase.y + 118);
+  for (let i = 0; i < 4; i++) {
+    spawnUnit('worker', 'e', G.ebase.x - 40 + i * 26, G.ebase.y + 96);
+  }
+  spawnUnit('sword', 'e', G.ebase.x + 40, G.ebase.y + 140);
+  spawnUnit('archer', 'e', G.ebase.x + 70, G.ebase.y + 165);
+  updateHUD(true);
+}
+
+// ---------------------------------------------------------------------------
+//  创建实体
+// ---------------------------------------------------------------------------
+function spawnUnit(key, team, x, y) {
+  const d = UNITS[key];
+  const u = {
+    id: nextId++, kind: 'unit', key: key, team: team,
+    x: x, y: y, r: d.r, hp: d.hp, maxHp: d.hp * (team === 'e' ? ENEMY_SCALE.hp : 1),
+    speed: d.speed, dmg: d.dmg * (team === 'e' ? ENEMY_SCALE.dmg : 1),
+    range: d.range * TS, cdMax: d.cd, cd: 0,
+    aggro: (d.aggro || 0) * TS, tr: d.tr * TS,
+    order: 'idle', tx: x, ty: y, target: null,
+    carry: 0, node: null, res: null, resDeposited: 0,
+    buildTarget: null, repairTarget: null, retry: 0, stuck: 0, anim: Math.random() * 6,
+    lastX: x, lastY: y, hurtBy: null,
+    facing: 1, sel: false
+  };
+  G.ents.push(u);
+  return u;
+}
+function spawnBuilding(key, team, x, y, done) {
+  const d = BUILDS[key];
+  const hp = d.hp * (team === 'e' ? ENEMY_SCALE.hp : 1);
+  const b = {
+    id: nextId++, kind: 'building', key: key, team: team,
+    x: x, y: y, r: d.size * TS * 0.5, size: d.size,
+    hp: done === false ? hp * 0.15 : hp, maxHp: hp,
+    dmg: (d.dmg || 0) * (team === 'e' ? ENEMY_SCALE.dmg : 1), range: (d.range || 0) * TS, cdMax: d.cd || 1, cd: 0,
+    aggro: (d.aggro || 0) * TS,
+    queue: [], prod: null, prodT: 0, done: done !== false, builder: null,
+    pop: d.pop || 0, rally: null, btime: d.btime || 20
+  };
+  G.ents.push(b);
+  return b;
+}
+
+// ---------------------------------------------------------------------------
+//  查询辅助
+// ---------------------------------------------------------------------------
+function entById(id) { for (const e of G.ents) if (e.id === id) return e; return null; }
+function aliveOf(kind, team) {
+  const out = [];
+  for (const e of G.ents) if (e.kind === kind && (!team || e.team === team) && e.hp > 0) out.push(e);
+  return out;
+}
+function enemyTeamOf(team) { return team === 'p' ? 'e' : 'p'; }
+function foe(e) { return e.team === 'p' ? 'e' : 'p'; }
+function popUsed(team) {
+  let n = 0;
+  for (const e of G.ents) if (e.kind === 'unit' && e.team === team && e.hp > 0) n += UNITS[e.key].pop || 1;
+  return n;
+}
+function popCapOf(team) {
+  let n = 0;
+  for (const e of G.ents) if (e.kind === 'building' && e.team === team && e.hp > 0 && e.done) n += BUILDS[e.key].pop || 0;
+  return n;
+}
+function workRadius(b) { return b.r + 14; }
+function nearestNode(x, y, exclude) {
+  let best = null, bd = Infinity;
+  for (const n of G.nodes) {
+    if (n.amount <= 0 || n === exclude) continue;
+    const d = (n.x - x) * (n.x - x) + (n.y - y) * (n.y - y);
+    if (d < bd) { bd = d; best = n; }
+  }
+  return best;
+}
+// 采集定位：优先近处，但保留少量工人去远的矿，避免拥堵
+function pickNode(u) {
+  const list = G.nodes.filter(n => n.amount > 0).map(n => ({ n: n, d: Math.hypot(n.x - u.x, n.y - u.y) }));
+  if (!list.length) return null;
+  list.sort((a, b) => a.d - b.d);
+  for (let i = 0; i < Math.min(3, list.length); i++) {
+    const c = list[i].n;
+    let cnt = 0;
+    for (const o of G.ents) if (o.kind === 'unit' && o.order === 'toNode' && o.node === c) cnt++;
+    if (cnt < 4) return c;
+  }
+  return list[0].n;
+}
+// 该单位是否应该忽略这个碰撞体（正在攻击/建造/采集的目标）
+function ignoreCollision(u, o) {
+  if (o === u) return true;
+  if (u.kind === 'unit') {
+    if (u.target === o) return true;
+    if (u.buildTarget === o || u.repairTarget === o) return true;
+  }
+  return false;
+}
+// 找到射程/警戒范围内最近的敌人（按到目标边缘的距离计算）
+function findEnemyNear(e, extra) {
+  const range = (e.range || 0) + (extra || 0);
+  if (range <= 0) return null;
+  let best = null, bd = range;
+  const team = foe(e);
+  for (const o of G.ents) {
+    if (o.hp <= 0 || o.team !== team) continue;
+    const dd = Math.max(0, Math.hypot(e.x - o.x, e.y - o.y) - (o.r || 0));
+    if (dd <= bd) { bd = dd; best = o; }
+  }
+  return best;
+}
+function findNearestEnemy(from, maxRange) {
+  let best = null, bd = maxRange * maxRange;
+  const team = foe(from);
+  for (const o of G.ents) {
+    if (o.hp <= 0 || o.team !== team) continue;
+    const d = dist2(from, o);
+    if (d < bd) { bd = d; best = o; }
+  }
+  return best;
+}
+function findNearestNode(from, maxRange) {
+  let best = null, bd = maxRange * maxRange;
+  for (const n of G.nodes) {
+    if (n.amount <= 0) continue;
+    const d = (n.x - from.x) * (n.x - from.x) + (n.y - from.y) * (n.y - from.y);
+    if (d < bd) { bd = d; best = n; }
+  }
+  return best;
+}
+function findBuildSpot(key, cx, cy, maxR) {
+  const size = BUILDS[key].size, step = TS;
+  const start = { x: Math.round(cx / step) * step, y: Math.round(cy / step) * step };
+  for (let ring = 0; ring <= maxR; ring++) {
+    for (let dx = -ring; dx <= ring; dx++) {
+      for (let dy = -ring; dy <= ring; dy++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+        const x = start.x + dx * step, y = start.y + dy * step;
+        if (canPlace(key, x, y, null)) return { x: x, y: y };
+      }
+    }
+  }
+  return null;
+}
+function canPlace(key, x, y, exclude) {
+  const size = BUILDS[key].size, half = size * TS * 0.5;
+  if (x - half < 8 || y - half < 8 || x + half > MAPW - 8 || y + half > MAPH - 8) return false;
+  const pad = size * TS * 0.5 + 4;
+  for (const e of G.ents) {
+    if (e === exclude || e.hp <= 0 || e.kind !== 'building') continue;
+    if (Math.abs(e.x - x) < e.r + pad && Math.abs(e.y - y) < e.r + pad) return false;
+  }
+  for (const n of G.nodes) {
+    if (n.amount <= 0) continue;
+    if (Math.hypot(n.x - x, n.y - y) < n.r + pad + 6) return false;
+  }
+  return true;
+}
+function removeEnt(e) {
+  const i = G.ents.indexOf(e);
+  if (i >= 0) G.ents.splice(i, 1);
+  const j = G.sel.indexOf(e);
+  if (j >= 0) G.sel.splice(j, 1);
+  if (G.psel === e) G.psel = null;
+}
+function addFx(x, y, t, v) {
+  if (G.fx.length > 300) G.fx.shift();
+  G.fx.push({ x: x, y: y, t: t, life: t === 'ring' ? 0.5 : 0.3, max: t === 'ring' ? 0.5 : 0.3, v: v || 0 });
+}
+function popAt(team, n) { G.team[team].gatherPulse = 1; G.team[team].gold += n; }
+function deduct(team, n) {
+  if (G.team[team].gold < n) return false;
+  G.team[team].gold -= n;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+//  移动
+// ---------------------------------------------------------------------------
+function needMove(u) { return Math.hypot(u.tx - u.x, u.ty - u.y) > u.r + 3; }
+function followTarget(u, target, stopAt) {
+  if (dist(u, target) > stopAt) {
+    u.tx = target.x; u.ty = target.y;
+    loco(u, 1);
+    return false;
+  }
+  return true;
+}
+function loco(u, dt) {
+  let dx = u.tx - u.x, dy = u.ty - u.y;
+  const d = Math.hypot(dx, dy);
+  if (d < 1) return;
+  dx /= d; dy /= d;
+  let sx = dx, sy = dy;
+  const team = u.team;
+  for (const o of G.ents) {
+    if (o.hp <= 0 || o.team !== team) continue;
+    if (ignoreCollision(u, o)) continue;
+    const R = u.r + o.r + 4;
+    const ox = u.x - o.x, oy = u.y - o.y;
+    const dd = Math.hypot(ox, oy);
+    if (dd >= R || dd < 0.0001) continue;
+    const push = (R - dd) / R;
+    const away = o.kind === 'building' ? 1.7 : 1.0;
+    sx += (ox / dd) * push * away * 1.5;
+    sy += (oy / dd) * push * away * 1.5;
+  }
+  // 绕开金矿
+  for (const n of G.nodes) {
+    if (n.amount <= 0) continue;
+    if (u.node === n) continue;
+    const R = u.r + n.r + 6;
+    const ox = u.x - n.x, oy = u.y - n.y;
+    const dd = Math.hypot(ox, oy);
+    if (dd >= R || dd < 0.0001) continue;
+    const push = (R - dd) / R;
+    sx += (ox / dd) * push * 1.8;
+    sy += (oy / dd) * push * 1.8;
+  }
+  const sl = Math.hypot(sx, sy) || 1;
+  sx /= sl; sy /= sl;
+  const sp = u.speed * dt;
+  u.x += sx * sp; u.y += sy * sp;
+  if (Math.abs(sx) > 0.15) u.facing = sx > 0 ? 1 : -1;
+  u.anim += dt * 6;
+  u.x = clamp(u.x, u.r + 4, MAPW - u.r - 4);
+  u.y = clamp(u.y, u.r + 4, MAPH - u.r - 4);
+  resolveOverlap(u);
+  // 卡住检测：长时间原地打转就换一个临时路点绕行
+  const moved = Math.hypot(u.x - u.lastX, u.y - u.lastY);
+  u.lastX = u.x; u.lastY = u.y;
+  if (moved < 0.25 && d > 26) {
+    u.stuck += dt;
+    if (u.stuck > 0.5) {
+      u.stuck = 0;
+      const ang = Math.atan2(dy, dx) + (Math.random() < 0.5 ? 1 : -1) * (0.7 + Math.random() * 0.6);
+      u.tx = clamp(u.x + Math.cos(ang) * 110, 20, MAPW - 20);
+      u.ty = clamp(u.y + Math.sin(ang) * 110, 20, MAPH - 20);
+    }
+  } else if (moved > 0.6) {
+    u.stuck = 0;
+  }
+}
+function resolveOverlap(u) {
+  for (const o of G.ents) {
+    if (o.hp <= 0 || o.kind !== 'building') continue;
+    if (ignoreCollision(u, o)) continue;
+    const R = u.r + o.r;
+    const ox = u.x - o.x, oy = u.y - o.y;
+    const dd = Math.hypot(ox, oy);
+    if (dd >= R || dd < 0.0001) continue;
+    u.x = o.x + (ox / dd) * R;
+    u.y = o.y + (oy / dd) * R;
+  }
+  // 单位互相推开
+  for (const o of G.ents) {
+    if (o === u || o.hp <= 0 || o.kind !== 'unit') continue;
+    const R = u.r + o.r;
+    const ox = u.x - o.x, oy = u.y - o.y;
+    const dd = Math.hypot(ox, oy);
+    if (dd >= R || dd < 0.0001) continue;
+    const push = (R - dd) * 0.5;
+    const nx = ox / dd, ny = oy / dd;
+    u.x += nx * push; u.y += ny * push;
+    if (o.order === 'idle') { o.x -= nx * push * 0.5; o.y -= ny * push * 0.5; }
+  }
+}
+
+// 群组移动：在目标附近找各自空位，避免全挤在一点
+function groupMoveOrder(u, x, y, i, total) {
+  const ang = (i * 2.399963);
+  const rad = total > 1 ? 16 + Math.sqrt(i) * 15 : 0;
+  u.tx = clamp(x + Math.cos(ang) * rad, 20, MAPW - 20);
+  u.ty = clamp(y + Math.sin(ang) * rad, 20, MAPH - 20);
+}
+
+// ---------------------------------------------------------------------------
+//  战斗
+// ---------------------------------------------------------------------------
+function applyDamage(target, dmg, src) {
+  if (target.hp <= 0) return;
+  let d = dmg;
+  if (src && src.kind === 'unit' && src.key === 'war' && target.kind === 'building') d *= 2;
+  target.hp -= d;
+  if (target.kind === 'unit' && src && src.team !== target.team && !target.target) target.hurtBy = src;
+  if (target.hp <= 0) {
+    target.hp = 0;
+    if (target.kind === 'building') {
+      addFx(target.x, target.y, 'ring', target.r + 40);
+      for (let i = 0; i < 6; i++) addFx(target.x + (Math.random() - .5) * target.r, target.y + (Math.random() - .5) * target.r, 'spark');
+    } else {
+      addFx(target.x, target.y, 'ring', 22);
+    }
+    // 让工人放弃已消失的目标
+    for (const u of G.ents) {
+      if (u.kind !== 'unit') continue;
+      if (u.target === target) { u.target = null; u.order = 'idle'; }
+      if (u.buildTarget === target) { u.buildTarget = null; u.order = 'idle'; }
+      if (u.repairTarget === target) { u.repairTarget = null; u.order = 'idle'; }
+    }
+    removeEnt(target);
+  }
+}
+function refreshTargets() {
+  for (const u of G.ents) {
+    if (u.hp <= 0 || u.kind !== 'unit') continue;
+    if (u.target && u.target.hp <= 0) { u.target = null; u.retry = 0; continue; }
+    if (!u.aggro || u.target) continue;
+    // 待命/移动途中，进入警戒范围自动接敌
+    if (u.order === 'idle' || u.order === 'move' || u.order === 'moveAttack') {
+      const t = findEnemyNear(u, u.aggro);
+      if (t) u.target = t;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+//  单位更新
+// ---------------------------------------------------------------------------
+function updateUnit(u, dt) {
+  u.cd = Math.max(0, u.cd - dt);
+  if (u.hp <= 0) return;
+
+  // 被攻击时自动反击
+  if (u.hurtBy && u.hurtBy.hp > 0 && u.hurtBy.team !== u.team && !u.target && u.order !== 'build') {
+    u.target = u.hurtBy; u.hurtBy = null;
+  }
+
+  // 攻击优先
+  if (u.target && u.target.hp > 0) {
+    const stop = Math.max(u.r + u.target.r + 3, u.range);
+    if (!followTarget(u, u.target, stop)) return;
+    if (u.cd <= 0) {
+      u.cd = u.cdMax;
+      if (u.range > 22) {
+        addFx((u.x + u.target.x) / 2, (u.y + u.target.y) / 2, 'bolt',
+          Math.atan2(u.target.y - u.y, u.target.x - u.x));
+      }
+      applyDamage(u.target, u.dmg, u);
+      if (u.key === 'archer' || u.key === 'war') addFx(u.target.x, u.target.y, 'hit');
+    }
+    return;
+  } else if (u.target && u.target.hp <= 0) {
+    u.target = null;
+    if (u.order === 'attack' || u.order === 'moveAttack') u.order = 'idle';
+  }
+
+  switch (u.order) {
+    case 'idle': {
+      if (u.key === 'worker' && u.carry === 0 && !u.node) {
+        const n = findNearestNode(u, 320);
+        if (n) { u.node = n; u.order = 'toNode'; }
+      }
+      break;
+    }
+    case 'move': {
+      if (!needMove(u)) u.order = 'idle';
+      else loco(u, dt);
+      break;
+    }
+    case 'moveAttack': {
+      const t = findEnemyNear(u, 40);
+      if (t) { u.target = t; break; }
+      if (!needMove(u)) u.order = 'idle';
+      else loco(u, dt);
+      break;
+    }
+    case 'toNode': {
+      if (!u.node || u.node.amount <= 0) { u.node = null; u.order = 'idle'; break; }
+      if (dist(u, u.node) > u.node.r + u.r + 2) {
+        u.tx = u.node.x; u.ty = u.node.y; loco(u, dt);
+      } else {
+        u.node.amount -= 8;
+        u.carry = 20;
+        u.node = null;
+        u.order = 'toBase';
+      }
+      break;
+    }
+    case 'toBase': {
+      const base = nearestDropoff(u);
+      if (!base) { u.order = 'idle'; break; }
+      if (dist(u, base) > workRadius(base) + 2) {
+        u.tx = base.x; u.ty = base.y; loco(u, dt);
+      } else {
+        u.carry = 0; u.resDeposited++;
+        popAt(u.team, 15);
+        addFx(base.x, base.y, 'coin');
+        u.order = 'idle';
+      }
+      break;
+    }
+    case 'build': {
+      const b = u.buildTarget;
+      if (!b || b.hp <= 0) { u.buildTarget = null; u.order = 'idle'; break; }
+      if (b.done) { u.buildTarget = null; u.order = 'idle'; break; }
+      const stop = workRadius(b) + 2;
+      if (dist(u, b) > stop) {
+        u.tx = b.x; u.ty = b.y;
+        if (!needMove(u)) { loco(u, dt); return; }
+        loco(u, dt);
+      } else {
+        b.hp = Math.min(b.maxHp, b.hp + b.maxHp * dt / b.btime);
+        if (Math.random() < dt * 12) addFx(b.x + (Math.random() - .5) * b.r, b.y + b.r * 0.6, 'spark');
+        if (b.hp >= b.maxHp * 0.999) {
+          b.hp = b.maxHp; b.done = true; b.builder = null;
+          addFx(b.x, b.y, 'ring', b.r + 30);
+          u.buildTarget = null; u.order = 'idle';
+          log('建造完成：' + BUILDS[b.key].name);
+          updateHUD(true);
+        }
+      }
+      break;
+    }
+    case 'repair': {
+      const b = u.repairTarget;
+      if (!b || b.hp <= 0 || b.hp >= b.maxHp) { u.repairTarget = null; u.order = 'idle'; break; }
+      const stop = workRadius(b) + 2;
+      if (dist(u, b) > stop) {
+        u.tx = b.x; u.ty = b.y; loco(u, dt);
+      } else {
+        const cost = Math.min(G.team[u.team].gold, 12 * dt);
+        if (cost > 0) {
+          G.team[u.team].gold -= cost;
+          b.hp = Math.min(b.maxHp, b.hp + cost * 8);
+        }
+        if (Math.random() < dt * 8) addFx(b.x, b.y, 'spark');
+        if (b.hp >= b.maxHp) { b.hp = b.maxHp; u.repairTarget = null; u.order = 'idle'; }
+      }
+      break;
+    }
+  }
+}
+function nearestDropoff(u) {
+  let best = null, bd = Infinity;
+  for (const e of G.ents) {
+    if (e.kind !== 'building' || e.team !== u.team || !e.done || e.hp <= 0) continue;
+    const d = dist2(u, e);
+    if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+// 建筑建造进度由 b.btime 控制（见 spawnBuilding）
+
+// ---------------------------------------------------------------------------
+//  建筑 / 生产
+// ---------------------------------------------------------------------------
+function queueUnit(b, key) {
+  const d = UNITS[key];
+  const team = b.team;
+  if (popUsed(team) + (d.pop || 1) > popCapOf(team)) return '人口不足';
+  if (!deduct(team, d.cost)) return '黄金不足';
+  b.queue.push(key);
+  return null;
+}
+function updateBuilding(b, dt) {
+  b.cd = Math.max(0, b.cd - dt);
+  if (b.range > 0 && b.dmg > 0 && b.done && b.hp > 0) {
+    if (!b.target || b.target.hp <= 0 || dist(b, b.target) > b.range + 30) b.target = findEnemyNear(b, 0);
+    if (b.target && b.target.hp > 0 && b.cd <= 0) {
+      b.cd = b.cdMax;
+      const ang = Math.atan2(b.target.y - b.y, b.target.x - b.x);
+      addFx(b.x + Math.cos(ang) * b.r, b.y + Math.sin(ang) * b.r, 'bolt', ang);
+      applyDamage(b.target, b.dmg, b);
+      addFx(b.target.x, b.target.y, 'hit');
+    }
+  }
+  if (b.queue.length > 0 && b.done) {
+    if (!b.prod) { b.prod = b.queue[0]; b.prodT = 0; }
+    b.prodT += dt;
+    const need = UNITS[b.prod].btime;
+    if (b.prodT >= need) {
+      const key = b.queue.shift();
+      b.prod = b.queue[0] || null; b.prodT = 0;
+      const ang = Math.random() * Math.PI * 2;
+      const u = spawnUnit(key, b.team, b.x + Math.cos(ang) * (b.r + 16), b.y + Math.sin(ang) * (b.r + 16));
+      if (b.rally) {
+        u.order = 'move';
+        u.tx = b.rally.x; u.ty = b.rally.y;
+      }
+      addFx(u.x, u.y, 'ring', 18);
+      if (b.team === 'p') log(UNITS[key].name + ' 已就绪');
+    }
+  } else if (b.queue.length === 0) {
+    b.prod = null; b.prodT = 0;
+  }
+}
+
+// ---------------------------------------------------------------------------
+//  敌方 AI
+// ---------------------------------------------------------------------------
+function enemyAI(dt) {
+  const t = G.team.e;
+  t.aiTimer -= dt;
+  if (t.aiTimer > 0) return;
+  t.aiTimer = 0.7;
+  const myUnits = aliveOf('unit', 'e');
+  const workers = myUnits.filter(u => u.key === 'worker');
+  const army = myUnits.filter(u => u.key !== 'worker');
+  const nodesLeft = G.nodes.some(n => n.amount > 0);
+  const barracks = aliveOf('building', 'e').filter(b => b.key === 'barracks' && b.done);
+  const halls = aliveOf('building', 'e').filter(b => b.key === 'hall' && b.done);
+  const houses = aliveOf('building', 'e').filter(b => b.key === 'house');
+
+  // 1) 采集
+  if (nodesLeft) {
+    const want = 8;
+    if (workers.length < want && halls.length && t.gold >= UNITS.worker.cost && popUsed('e') + 1 <= popCapOf('e')) {
+      const h = halls[0];
+      h.queue.push('worker'); t.gold -= UNITS.worker.cost;
+    }
+    for (const u of workers) {
+      if (u.order === 'idle' && !u.node && u.carry === 0) {
+        const n = nearestNode(u.x, u.y, null);
+        if (n && (u.retry <= 0 || Math.random() < 0.3)) { u.node = n; u.order = 'toNode'; u.retry++; }
+        else if (n) { u.node = n; u.order = 'toNode'; }
+      }
+    }
+  }
+
+  // 2) 人口
+  if (popUsed('e') >= popCapOf('e') - 1 && t.gold >= BUILDS.house.cost && houses.length < 14) {
+    const free = workers.filter(w => w.order === 'idle' || (w.order === 'toNode' && !w.node));
+    if (free.length > 4) {
+      const spot = findBuildSpot('house', G.ebase.x + (Math.random() - .5) * 420, G.ebase.y + (Math.random() - .5) * 420, 14);
+      if (spot) { startBuild('e', free[0], 'house', spot); }
+    }
+  }
+
+  // 3) 兵营
+  if (barracks.length < 1 && t.gold >= BUILDS.barracks.cost) {
+    const spot = findBuildSpot('barracks', G.ebase.x + 110, G.ebase.y + 190, 12);
+    const w = workers.find(u => u.order === 'idle'); 
+    if (spot && w) startBuild('e', w, 'barracks', spot);
+  }
+
+  // 4) 塔
+  const towers = aliveOf('building', 'e').filter(b => b.key === 'tower');
+  if (barracks.length >= 1 && towers.length < 1 + Math.floor(G.wave / 2) && t.gold >= BUILDS.tower.cost + 120) {
+    const ang = Math.atan2(G.pbase.y - G.ebase.y, G.pbase.x - G.ebase.x) + (Math.random() - .5) * 1.1;
+    const px = G.ebase.x + Math.cos(ang) * (240 + Math.random() * 140);
+    const py = G.ebase.y + Math.sin(ang) * (240 + Math.random() * 140);
+    const spot = findBuildSpot('tower', px, py, 9);
+    const w = workers.find(u => u.order === 'idle');
+    if (spot && w) startBuild('e', w, 'tower', spot);
+  }
+
+  // 5) 主基地补建
+  if (!aliveOf('building', 'e').some(b => b.key === 'hall')) {
+    if (t.gold >= BUILDS.hall.cost) {
+      const spot = findBuildSpot('hall', G.ebase.x + (Math.random() - .5) * 500, G.ebase.y + (Math.random() - .5) * 500, 16);
+      const w = workers.find(u => u.order === 'idle');
+      if (spot && w) startBuild('e', w, 'hall', spot);
+    }
+  }
+
+  // 6) 出兵
+  for (const b of barracks) {
+    if (b.queue.length >= 3) continue;
+    if (popUsed('e') + 1 > popCapOf('e') - 1) break;
+    let key = 'sword';
+    if (t.gold >= 320 && G.wave >= 3 && Math.random() < 0.30 + G.wave * 0.04) key = 'war';
+    else if (t.gold >= 180 && Math.random() < 0.28 + G.wave * 0.02) key = 'knight';
+    else if (t.gold >= 100 && Math.random() < 0.5) key = 'archer';
+    const d = UNITS[key];
+    if (t.gold >= d.cost) {
+      b.queue.push(key); t.gold -= d.cost;
+      G.wave += 0.001;
+    } else break;
+  }
+
+  // 7) 进攻波次
+  const num = Math.floor(G.t / 105) + 1;
+  if (num > G.wave) {
+    G.wave = num;
+    const target = pickRaidTarget();
+    let launched = 0;
+    for (const u of army) {
+      if (u.order === 'idle' || u.order === 'move') { u.target = target; launched++; }
+    }
+    if (launched) log('⚠ 敌军第 ' + num + ' 波进攻！', true);
+  }
+  // 侵略：待机部队压向玩家
+  const tgt = pickRaidTarget();
+  for (const u of army) {
+    if (u.kind !== 'unit') continue;
+    if (u.order === 'idle' && !u.target && G.t > 40) {
+      const anyClose = findEnemyNear(u, 300);
+      if (!anyClose) { u.target = tgt; }
+    }
+  }
+  G.team.e.aiTimer = 0.7 - Math.min(0.35, G.wave * 0.02);
+}
+function pickRaidTarget() {
+  const p = aliveOf('building', 'p');
+  if (!p.length) return null;
+  let best = p[0], bd = Infinity;
+  for (const b of p) {
+    const d = dist2(b, G.ebase);
+    const w = b.key === 'hall' ? 0.75 : b.key === 'tower' ? 1.5 : 1.15;
+    if (d * w < bd) { bd = d * w; best = b; }
+  }
+  return best;
+}
+function startBuild(team, worker, key, spot) {
+  const cost = BUILDS[key].cost;
+  if (!deduct(team, cost)) return false;
+  const b = spawnBuilding(key, team, spot.x, spot.y, false);
+  b.builder = worker;
+  worker.buildTarget = b;
+  worker.order = 'build';
+  worker.target = null;
+  worker.node = null;
+  if (team === 'p') addFx(b.x, b.y, 'ring', b.r + 24);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+//  主循环
+// ---------------------------------------------------------------------------
+let last = 0;
+function frame(now) {
+  const dtReal = last ? Math.min(0.05, (now - last) / 1000) : 0.016;
+  last = now;
+  const spd = G.paused ? 0 : G.speed;
+  const dt = dtReal * spd;
+  if (dt > 0 && !G.over) {
+    G.t += dt;
+    refreshTargets();
+    const list = G.ents.slice();
+    for (const e of list) {
+      if (e.hp <= 0) continue;
+      if (e.kind === 'unit') updateUnit(e, dt);
+      else updateBuilding(e, dt);
+    }
+    // 清理残留
+    for (let i = G.ents.length - 1; i >= 0; i--) if (G.ents[i].hp <= 0) G.ents.splice(i, 1);
+    enemyAI(dt);
+    G.team.p.popCap = popCapOf('p');
+    G.team.e.popCap = popCapOf('e');
+    G.team.p.pop = popUsed('p');
+    G.team.e.pop = popUsed('e');
+    G.team.p.gatherPulse = Math.max(0, G.team.p.gatherPulse - dt * 3);
+    for (let i = G.fx.length - 1; i >= 0; i--) {
+      const f = G.fx[i]; f.life -= dt;
+      if (f.life <= 0) G.fx.splice(i, 1);
+    }
+    checkEnd();
+  }
+  updateCamera(dtReal);
+  render();
+  updateHUD(false);
+  requestAnimationFrame(frame);
+}
+function checkEnd() {
+  if (G.over) return;
+  const pe = aliveOf('building', 'p').length;
+  const ee = aliveOf('building', 'e').length;
+  if (ee === 0) finish(1);
+  else if (pe === 0) finish(-1);
+}
+function finish(r) {
+  G.over = r;
+  document.getElementById('endTitle').textContent = r > 0 ? '🏆 胜利' : '💀 失败';
+  document.getElementById('endSub').textContent = (r > 0
+    ? '敌军基地已被彻底摧毁。'
+    : '你的所有建筑都被夷为平地。') +
+    '  用时 ' + fmtTime(G.t) + '，剩余黄金 ' + Math.round(G.team.p.gold) + '。';
+  document.getElementById('endScreen').classList.remove('hidden');
+}
+
+// ---------------------------------------------------------------------------
+//  摄像机 / 输入
+// ---------------------------------------------------------------------------
+function updateCamera(dt) {
+  const pan = 900 / cam.zoom;
+  let dx = 0, dy = 0;
+  // 视角：方向键 或 鼠标贴近屏幕边缘 / 中键拖动（A/S 留给游戏命令）
+  if (keys.ArrowUp || mouse.y < 6) dy -= 1;
+  if (keys.ArrowDown || mouse.y > H - 6) dy += 1;
+  if (keys.ArrowLeft || mouse.x < 6) dx -= 1;
+  if (keys.ArrowRight || mouse.x > W - 6) dx += 1;
+  if (mouse.rdrag || mouse.mid) {
+    dx += (mouse.sx - mouse.x) * 4;
+    dy += (mouse.sy - mouse.y) * 4;
+    mouse.sx = mouse.x; mouse.sy = mouse.y;
+  }
+  cam.x += dx * pan * dt;
+  cam.y += dy * pan * dt;
+  clampCam();
+}
+function clampCam() {
+  const vw = W / cam.zoom, vh = H / cam.zoom;
+  if (vw >= MAPW) cam.x = (MAPW - vw) / 2;
+  else cam.x = clamp(cam.x, 0, MAPW - vw);
+  if (vh >= MAPH) cam.y = (MAPH - vh) / 2;
+  else cam.y = clamp(cam.y, 0, MAPH - vh);
+}
+function s2w(sx, sy) { return { x: cam.x + sx / cam.zoom, y: cam.y + sy / cam.zoom }; }
+function pickAt(wx, wy) {
+  let best = null, bd = Infinity;
+  for (const e of G.ents) {
+    if (e.hp <= 0) continue;
+    const d = Math.hypot(e.x - wx, e.y - wy);
+    const rr = Math.max(e.r + 6, e.kind === 'unit' ? 16 : e.r);
+    if (d < rr && d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+function nodeAt(wx, wy) {
+  for (const n of G.nodes) if (n.amount > 0 && Math.hypot(n.x - wx, n.y - wy) < n.r + 12) return n;
+  return null;
+}
+function setSelection(list) {
+  G.sel = list.slice(0, 60);
+  for (const e of G.ents) e.sel = false;
+  for (const e of G.sel) e.sel = true;
+  G.psel = G.sel.length === 1 ? G.sel[0] : null;
+  G.placing = null; G.attackMove = false;
+  updateHUD(true);
+}
+function commandSelected(wx, wy, forceMove) {
+  if (!G.sel.length) return;
+  const ent = pickAt(wx, wy);
+  const node = nodeAt(wx, wy);
+  const movable = G.sel.filter(e => e.kind === 'unit');
+  if (!movable.length) {
+    // 只选了建筑：设置集结点
+    if (ent && (ent.team !== G.sel[0].team || forceMove)) return;
+    for (const b of G.sel) { if (b.kind === 'building') { b.rally = { x: wx, y: wy }; addFx(wx, wy, 'ring', 14); } }
+    return;
+  }
+  if (ent && ent.team !== movable[0].team && !forceMove) {
+    // 攻击
+    for (const u of movable) {
+      if (u.key === 'worker' && !keys.ShiftLeft) { /* 工人也可以攻击 */ }
+      u.target = ent; u.order = 'attack'; u.buildTarget = null; u.repairTarget = null; u.node = null;
+    }
+    addFx(ent.x, ent.y, 'ring', ent.r + 12);
+    log('攻击：' + labelOf(ent));
+    return;
+  }
+  if (node && !forceMove) {
+    const ws = movable.filter(u => u.key === 'worker');
+    if (ws.length) {
+      ws.forEach((u, i) => {
+        u.node = node; u.order = 'toNode'; u.target = null;
+        u.buildTarget = null; u.repairTarget = null; u.retry = 0;
+        if (i > 0) { u.tx = node.x + (Math.random() - .5) * 40; u.ty = node.y + (Math.random() - .5) * 40; }
+      });
+      const others = movable.filter(u => u.key !== 'worker');
+      others.forEach((u, i) => groupMoveOrder(u, wx, wy, i, others.length));
+      others.forEach(u => { u.order = 'move'; u.target = null; });
+      log(ws.length + ' 名工人前往金矿采集');
+      return;
+    }
+  }
+  if (ent && ent.team === movable[0].team && ent.kind === 'building' && !forceMove) {
+    const ws = movable.filter(u => u.key === 'worker');
+    const hurt = ent.hp < ent.maxHp * 0.999;
+    if (ws.length && (hurt || !ent.done)) {
+      for (const u of ws) {
+        if (!ent.done) { u.buildTarget = ent; u.order = 'build'; }
+        else { u.repairTarget = ent; u.order = 'repair'; }
+        u.target = null; u.node = null;
+      }
+      log((hurt ? '维修：' : '协助建造：') + BUILDS[ent.key].name);
+      return;
+    }
+  }
+  // 移动
+  const total = movable.length;
+  movable.forEach((u, i) => {
+    groupMoveOrder(u, wx, wy, i, total);
+    u.order = forceMove ? 'moveAttack' : 'move';
+    u.target = null;
+    u.buildTarget = null; u.repairTarget = null;
+  });
+  addFx(wx, wy, 'ring', 16);
+}
+function labelOf(e) {
+  return (e.kind === 'unit' ? UNITS[e.key].name : BUILDS[e.key].name) + (e.team === 'p' ? '(我方)' : '(敌方)');
+}
+function selectAllSoldiers() {
+  const list = G.ents.filter(e => e.kind === 'unit' && e.team === 'p' && SOLDIERS[e.key] && e.hp > 0);
+  setSelection(list);
+  log(list.length ? '已选中全部作战单位：' + list.length : '你还没有作战单位');
+}
+function workersBack() {
+  const ws = G.ents.filter(e => e.kind === 'unit' && e.team === 'p' && e.key === 'worker' && e.hp > 0);
+  let n = 0;
+  for (const u of ws) {
+    const n2 = pickNode(u);
+    if (n2) { u.node = n2; u.order = 'toNode'; u.target = null; u.buildTarget = null; u.repairTarget = null; n++; }
+  }
+  G.team.p.gatherPulse = 1;
+  log(n + ' 名工人返回采集');
+  addFx(G.pbase.x, G.pbase.y, 'ring', 60);
+}
+function tryPlaceAt(wx, wy) {
+  if (!G.placing) return;
+  const key = G.placing;
+  const snapX = Math.round(wx / TS) * TS, snapY = Math.round(wy / TS) * TS;
+  if (!canPlace(key, snapX, snapY, null)) { log('该位置无法建造', true); return; }
+  const cost = BUILDS[key].cost;
+  if (G.team.p.gold < cost) { log('黄金不足（需要 ' + cost + '）', true); return; }
+  const ws = G.sel.filter(e => e.kind === 'unit' && e.key === 'worker' && e.team === 'p');
+  let worker = ws[0];
+  if (!worker) {
+    // 自动挑最近的空闲工人
+    let bd = Infinity;
+    for (const u of G.ents) {
+      if (u.kind !== 'unit' || u.team !== 'p' || u.key !== 'worker' || u.hp <= 0) continue;
+      const d = Math.hypot(u.x - snapX, u.y - snapY);
+      if (d < bd) { bd = d; worker = u; }
+    }
+  }
+  if (!worker) { log('没有可用工人', true); return; }
+  if (startBuild('p', worker, key, { x: snapX, y: snapY })) {
+    log('开始建造：' + BUILDS[key].name);
+    if (keys.ShiftLeft) { /* 按住 Shift 连续建造 */ }
+    else G.placing = null;
+    updateHUD(true);
+  }
+}
+
+// ---------------------------------------------------------------------------
+//  渲染
+// ---------------------------------------------------------------------------
+function buildTerrain() {
+  terrain = document.createElement('canvas');
+  terrain.width = MAPW; terrain.height = MAPH;
+  const g = terrain.getContext('2d');
+  const rnd = mulberry32(99173);
+  g.fillStyle = '#33502f'; g.fillRect(0, 0, MAPW, MAPH);
+  for (let i = 0; i < 1400; i++) {
+    const x = rnd() * MAPW, y = rnd() * MAPH, r = 30 + rnd() * 130;
+    const t = rnd();
+    g.fillStyle = t < 0.4 ? '#3a5a35' : t < 0.75 ? '#2e4a2c' : '#43603a';
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  for (let i = 0; i < 420; i++) { // 小路/碎石
+    const x = rnd() * MAPW, y = rnd() * MAPH;
+    g.fillStyle = 'rgba(120,110,80,' + (0.02 + rnd() * 0.05) + ')';
+    g.beginPath(); g.arc(x, y, 8 + rnd() * 40, 0, 7); g.fill();
+  }
+  // 边界
+  g.strokeStyle = 'rgba(20,30,22,0.85)'; g.lineWidth = 26;
+  g.strokeRect(13, 13, MAPW - 26, MAPH - 26);
+  miniBase = document.createElement('canvas');
+  miniBase.width = 208; miniBase.height = Math.round(208 * MAPH / MAPW);
+  const mg = miniBase.getContext('2d');
+  mg.drawImage(terrain, 0, 0, miniBase.width, miniBase.height);
+}
+function render() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#0b120e';
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.scale(cam.zoom, cam.zoom);
+  ctx.translate(-cam.x, -cam.y);
+  const vx = cam.x - 40, vy = cam.y - 40, vw = W / cam.zoom + 80, vh = H / cam.zoom + 80;
+  // 地面
+  const sx = Math.max(0, Math.floor(vx)), sy = Math.max(0, Math.floor(vy));
+  const sw = Math.min(MAPW - sx, Math.ceil(vw)), sh = Math.min(MAPH - sy, Math.ceil(vh));
+  if (sw > 0 && sh > 0) ctx.drawImage(terrain, sx, sy, sw, sh, sx, sy, sw, sh);
+  // 装饰
+  for (const d of decor) {
+    if (d.x < vx || d.x > vx + vw || d.y < vy || d.y > vy + vh) continue;
+    drawDecor(d);
+  }
+  // 金矿
+  for (const n of G.nodes) {
+    if (n.x < vx || n.x > vx + vw || n.y < vy || n.y > vy + vh) continue;
+    if (n.amount > 0) drawNode(n);
+  }
+  // 建筑
+  for (const e of G.ents) {
+    if (e.kind !== 'building' || e.hp <= 0) continue;
+    if (!inView(e, vx, vy, vw, vh, e.r + 60)) continue;
+    drawBuilding(e);
+  }
+  // 单位
+  for (const e of G.ents) {
+    if (e.kind !== 'unit' || e.hp <= 0) continue;
+    if (!inView(e, vx, vy, vw, vh, 40)) continue;
+    drawUnit(e);
+  }
+  // 特效
+  for (const f of G.fx) drawFx(f);
+  // 选中环
+  for (const e of G.sel) if (e.hp > 0) drawSelectRing(e);
+  // 建造预览
+  if (G.placing) drawGhost();
+  // 框选
+  if (mouse.dragging) {
+    const a = s2w(mouse.sx, mouse.sy), b = s2w(mouse.x, mouse.y);
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y), w = Math.abs(a.x - b.x), h = Math.abs(a.y - b.y);
+    ctx.fillStyle = 'rgba(110,220,150,0.12)';
+    ctx.strokeStyle = 'rgba(150,255,190,0.85)';
+    ctx.lineWidth = 1.5 / cam.zoom;
+    ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  }
+  if (G.attackMove) {
+    ctx.strokeStyle = '#ff8b8b'; ctx.lineWidth = 2 / cam.zoom;
+    const w = s2w(mouse.x, mouse.y);
+    ctx.beginPath(); ctx.arc(w.x, w.y, 22, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w.x - 15, w.y); ctx.lineTo(w.x + 15, w.y);
+    ctx.moveTo(w.x, w.y - 15); ctx.lineTo(w.x, w.y + 15); ctx.stroke();
+  }
+  ctx.restore();
+  drawMinimap();
+}
+function inView(e, vx, vy, vw, vh, pad) {
+  return e.x > vx - pad && e.x < vx + vw + pad && e.y > vy - pad && e.y < vy + vh + pad;
+}
+function drawDecor(d) {
+  if (d.t === 'bush') {
+    ctx.fillStyle = '#2c4a28';
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.arc(d.x + (i - 1) * 7 * d.s, d.y - (i === 1 ? 5 : 0) * d.s, 8 * d.s, 0, 7);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#3d6534';
+    ctx.beginPath(); ctx.arc(d.x - 3 * d.s, d.y - 4 * d.s, 5 * d.s, 0, 7); ctx.fill();
+  } else {
+    ctx.fillStyle = '#6b6f66';
+    ctx.beginPath(); ctx.ellipse(d.x, d.y, 11 * d.s, 8 * d.s, 0.4, 0, 7); ctx.fill();
+    ctx.fillStyle = '#858a7e';
+    ctx.beginPath(); ctx.ellipse(d.x - 2 * d.s, d.y - 3 * d.s, 7 * d.s, 5 * d.s, 0.4, 0, 7); ctx.fill();
+  }
+}
+function drawNode(n) {
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath(); ctx.ellipse(n.x, n.y + 10, 26, 14, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#4c4f45';
+  ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 3, 0, 7); ctx.fill();
+  ctx.fillStyle = '#5f6355';
+  ctx.beginPath(); ctx.arc(n.x - 4, n.y - 4, n.r - 3, 0, 7); ctx.fill();
+  const count = clamp(Math.round(n.amount / 200), 3, 10);
+  for (let i = 0; i < count; i++) {
+    const a = i * 2.399963, r = (n.r - 6) * Math.sqrt((i + 0.5) / count);
+    const gx = n.x + Math.cos(a) * r, gy = n.y + Math.sin(a) * r;
+    ctx.fillStyle = i % 2 ? '#ffd76a' : '#e8b93f';
+    ctx.beginPath(); ctx.arc(gx, gy, 3.4, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,220,0.55)';
+    ctx.beginPath(); ctx.arc(gx - 1, gy - 1.2, 1.2, 0, 7); ctx.fill();
+  }
+}
+function teamColor(team) { return team === 'p' ? '#3f8fd0' : '#c04040'; }
+function teamDark(team) { return team === 'p' ? '#2a6394' : '#8a2e2e'; }
+
+function drawBuilding(b) {
+  const s = b.r * 2;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(b.x, b.y + b.r * 0.55, b.r * 1.05, b.r * 0.5, 0, 0, 7); ctx.fill();
+  const c1 = teamColor(b.team), c2 = teamDark(b.team);
+  ctx.fillStyle = '#8d8577';
+  ctx.fillRect(b.x - s * 0.5, b.y - s * 0.42, s, s * 0.84);
+  ctx.fillStyle = '#a49b89';
+  ctx.fillRect(b.x - s * 0.5, b.y - s * 0.42, s, s * 0.3);
+  ctx.strokeStyle = '#5d564b'; ctx.lineWidth = 2;
+  ctx.strokeRect(b.x - s * 0.5, b.y - s * 0.42, s, s * 0.84);
+  if (b.key === 'hall') {
+    ctx.fillStyle = c2; ctx.fillRect(b.x - s * 0.52, b.y - s * 0.62, s * 1.04, s * 0.26);
+    ctx.fillStyle = c1; ctx.fillRect(b.x - s * 0.52, b.y - s * 0.62, s * 1.04, s * 0.1);
+    ctx.fillStyle = '#3a3630';
+    ctx.beginPath(); ctx.moveTo(b.x - s * 0.14, b.y + s * 0.42);
+    ctx.lineTo(b.x - s * 0.14, b.y - s * 0.02); ctx.lineTo(b.x + s * 0.14, b.y - s * 0.02);
+    ctx.lineTo(b.x + s * 0.14, b.y + s * 0.42); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffd76a';
+    ctx.beginPath(); ctx.arc(b.x, b.y - s * 0.3, 5, 0, 7); ctx.fill();
+    ctx.fillStyle = c1; ctx.fillRect(b.x - 3, b.y - s * 0.72, 6, s * 0.2);
+  } else if (b.key === 'barracks') {
+    ctx.fillStyle = c2;
+    ctx.beginPath(); ctx.moveTo(b.x - s * 0.52, b.y - s * 0.42);
+    ctx.lineTo(b.x, b.y - s * 0.78); ctx.lineTo(b.x + s * 0.52, b.y - s * 0.42);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#4a423a';
+    ctx.fillRect(b.x - s * 0.18, b.y + s * 0.12, s * 0.36, s * 0.3);
+    ctx.strokeStyle = '#d8d2c4'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(b.x - s * 0.34, b.y + s * 0.1); ctx.lineTo(b.x - s * 0.14, b.y - s * 0.16);
+    ctx.moveTo(b.x + s * 0.34, b.y + s * 0.1); ctx.lineTo(b.x + s * 0.14, b.y - s * 0.16);
+    ctx.stroke();
+  } else if (b.key === 'tower') {
+    ctx.fillStyle = '#948b7c';
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.92, 0, 7); ctx.fill();
+    ctx.fillStyle = c2;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.7, 0, 7); ctx.fill();
+    ctx.fillStyle = c1;
+    ctx.beginPath(); ctx.arc(b.x, b.y - 2, b.r * 0.5, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#5d564b'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.92, 0, 7); ctx.stroke();
+    ctx.fillStyle = '#2f2b26';
+    ctx.fillRect(b.x - 3, b.y - b.r * 0.95, 6, b.r * 0.7);
+  } else { // house
+    ctx.fillStyle = c2;
+    ctx.beginPath(); ctx.moveTo(b.x - s * 0.54, b.y - s * 0.3);
+    ctx.lineTo(b.x, b.y - s * 0.78); ctx.lineTo(b.x + s * 0.54, b.y - s * 0.3);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#3a3630';
+    ctx.fillRect(b.x - s * 0.1, b.y + s * 0.14, s * 0.2, s * 0.28);
+  }
+  ctx.restore();
+  if (!b.done) {
+    const pct = clamp(b.hp / b.maxHp, 0, 1);
+    ctx.strokeStyle = 'rgba(120,200,255,0.85)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
+    ctx.strokeRect(b.x - b.r - 2, b.y - b.r - 2, b.r * 2 + 4, b.r * 2 + 4);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#6fd3ff';
+    ctx.font = 'bold 11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('建造中 ' + Math.round(pct * 100) + '%', b.x, b.y - b.r - 8);
+  }
+  if (b.hp < b.maxHp * 0.999) drawBar(b.x, b.y - b.r - (b.done ? 8 : 20), b.r * 1.7, b.hp / b.maxHp, b.team);
+  if (b.queue.length > 0) {
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.fillStyle = '#ffe9a8';
+    ctx.fillText(b.queue.length + ' 待生产 · ' + UNITS[b.queue[0]].name, b.x, b.y + b.r + 14);
+  }
+}
+function drawUnit(u) {
+  const d = UNITS[u.key];
+  const bob = Math.sin(u.anim) * 1.4;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(u.x, u.y + u.r * 0.75, u.r * 0.95, u.r * 0.42, 0, 0, 7); ctx.fill();
+  const cx = u.x, cy = u.y + bob;
+  if (u.key === 'worker') {
+    ctx.fillStyle = '#c9a227';
+    ctx.beginPath(); ctx.ellipse(cx, cy + 3, u.r * 0.85, u.r * 0.8, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#f0d98a';
+    ctx.beginPath(); ctx.arc(cx, cy - 4, u.r * 0.55, 0, 7); ctx.fill();
+    if (u.carry > 0) {
+      ctx.fillStyle = '#ffd76a';
+      ctx.beginPath(); ctx.arc(cx + 6 * u.facing, cy + 2, 4, 0, 7); ctx.fill();
+    }
+    ctx.strokeStyle = '#7a6416'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - 8 * u.facing, cy + 2); ctx.lineTo(cx + 8 * u.facing, cy + 2); ctx.stroke();
+  } else {
+    const c1 = teamColor(u.team), c2 = teamDark(u.team);
+    ctx.fillStyle = u.key === 'knight' || u.key === 'war' ? '#6d7681' : '#8a8f96';
+    ctx.beginPath(); ctx.ellipse(cx, cy + 4, u.r * 1.05, u.r * 0.72, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = c1;
+    ctx.beginPath(); ctx.ellipse(cx, cy - 1, u.r * 0.82, u.r * 0.72, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = c2;
+    ctx.beginPath(); ctx.ellipse(cx, cy - 1, u.r * 0.82, u.r * 0.34, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#e8dcc8';
+    ctx.beginPath(); ctx.arc(cx, cy - u.r * 0.85, u.r * 0.42, 0, 7); ctx.fill();
+    if (u.key === 'archer') {
+      ctx.strokeStyle = '#d8c48a'; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.arc(cx + 9 * u.facing, cy, 7, -1.1, 1.1, u.facing < 0); ctx.stroke();
+    } else if (u.key === 'sword') {
+      ctx.strokeStyle = '#dfe6ec'; ctx.lineWidth = 2.6;
+      ctx.beginPath(); ctx.moveTo(cx + 4 * u.facing, cy + 3); ctx.lineTo(cx + 13 * u.facing, cy - 6); ctx.stroke();
+    } else if (u.key === 'knight') {
+      ctx.fillStyle = '#dfe6ec';
+      ctx.beginPath(); ctx.moveTo(cx - u.r * 0.5, cy - u.r * 0.6);
+      ctx.lineTo(cx, cy - u.r * 1.25); ctx.lineTo(cx + u.r * 0.5, cy - u.r * 0.6);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#c9d2da'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(cx + 8 * u.facing, cy - 2); ctx.lineTo(cx + 17 * u.facing, cy - 8); ctx.stroke();
+    } else if (u.key === 'war') {
+      ctx.fillStyle = '#4d4438';
+      ctx.fillRect(cx - u.r * 0.9, cy - u.r * 0.75, u.r * 1.8, u.r * 0.9);
+      ctx.strokeStyle = '#3a332a'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(cx - 6, cy + 4); ctx.lineTo(cx - 15, cy + 11);
+      ctx.moveTo(cx + 6, cy + 4); ctx.lineTo(cx + 15, cy + 11); ctx.stroke();
+      ctx.strokeStyle = '#8a7a5c'; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(cx - 10, cy - 6); ctx.lineTo(cx + 14 * u.facing, cy - 12); ctx.stroke();
+    }
+  }
+  if (u.hp < u.maxHp * 0.999) drawBar(u.x, u.y - u.r - 9, u.r * 2.1, u.hp / u.maxHp, u.team);
+}
+function drawBar(x, y, w, pct, team) {
+  ctx.fillStyle = 'rgba(0,0,0,0.62)';
+  ctx.fillRect(x - w / 2, y, w, 5);
+  ctx.fillStyle = team === 'p' ? (pct > 0.5 ? '#5ee08a' : pct > 0.25 ? '#ffd76a' : '#ff7a7a')
+    : (pct > 0.5 ? '#e07070' : '#ff5a5a');
+  ctx.fillRect(x - w / 2 + 0.5, y + 0.5, (w - 1) * clamp(pct, 0, 1), 4);
+}
+function drawSelectRing(e) {
+  const pulse = 0.65 + 0.35 * Math.sin(G.t * 6);
+  ctx.strokeStyle = e.team === 'p' ? 'rgba(140,240,180,' + pulse + ')' : 'rgba(255,140,140,' + pulse + ')';
+  ctx.lineWidth = 2 / cam.zoom + 1;
+  ctx.beginPath();
+  ctx.ellipse(e.x, e.y + e.r * 0.5, e.r + 5, (e.r + 5) * 0.45, 0, 0, 7);
+  ctx.stroke();
+}
+function drawFx(f) {
+  const a = clamp(f.life / f.max, 0, 1);
+  if (f.t === 'ring') {
+    ctx.strokeStyle = 'rgba(160,240,190,' + a * 0.9 + ')';
+    ctx.lineWidth = 2.5 * a + 0.5;
+    ctx.beginPath(); ctx.arc(f.x, f.y, (1 - a) * (f.v || 20) + 4, 0, 7); ctx.stroke();
+  } else if (f.t === 'bolt') {
+    ctx.strokeStyle = 'rgba(255,236,170,' + a + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(f.x - Math.cos(f.v) * 12, f.y - Math.sin(f.v) * 12);
+    ctx.lineTo(f.x, f.y); ctx.stroke();
+  } else if (f.t === 'hit') {
+    ctx.fillStyle = 'rgba(255,180,90,' + a * 0.85 + ')';
+    ctx.beginPath(); ctx.arc(f.x, f.y, (1 - a) * 8 + 2, 0, 7); ctx.fill();
+  } else if (f.t === 'spark') {
+    ctx.fillStyle = 'rgba(255,225,150,' + a + ')';
+    ctx.fillRect(f.x - 1.5, f.y - 1.5, 3, 3);
+  } else if (f.t === 'coin') {
+    ctx.fillStyle = 'rgba(255,215,106,' + a + ')';
+    const dy = (1 - a) * 26;
+    ctx.beginPath(); ctx.arc(f.x, f.y - dy, 4 * a + 1, 0, 7); ctx.fill();
+  }
+}
+function drawGhost() {
+  const key = G.placing, size = BUILDS[key].size, half = size * TS * 0.5;
+  const w = s2w(mouse.x, mouse.y);
+  const x = Math.round(w.x / TS) * TS, y = Math.round(w.y / TS) * TS;
+  const ok = canPlace(key, x, y, null) && G.team.p.gold >= BUILDS[key].cost;
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = ok ? '#6fe39a' : '#ff7a7a';
+  ctx.fillRect(x - half, y - half, size * TS, size * TS);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = ok ? '#a8ffbf' : '#ff9c9c';
+  ctx.lineWidth = 2 / cam.zoom;
+  ctx.strokeRect(x - half, y - half, size * TS, size * TS);
+  ctx.fillStyle = ok ? '#dfffe9' : '#ffd8d8';
+  ctx.font = 'bold 12px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(BUILDS[key].name + '  ' + BUILDS[key].cost + ' 金', x, y - half - 8);
+}
+function drawMinimap() {
+  const mw = minicv.width, mh = minicv.height;
+  const k = mw / MAPW;
+  mctx.clearRect(0, 0, mw, mh);
+  mctx.drawImage(miniBase, 0, 0, mw, Math.round(MAPH * k));
+  // 金矿
+  mctx.fillStyle = '#ffd76a';
+  for (const n of G.nodes) {
+    if (n.amount <= 0) continue;
+    mctx.fillRect(n.x * k - 2, n.y * k - 2, 4, 4);
+  }
+  // 建筑
+  for (const e of G.ents) {
+    if (e.kind !== 'building' || e.hp <= 0) continue;
+    mctx.fillStyle = e.team === 'p' ? '#63c6ff' : '#ff6b6b';
+    const s = Math.max(3, e.size * TS * k);
+    mctx.fillRect(e.x * k - s / 2, e.y * k - s / 2, s, s);
+  }
+  // 单位
+  for (const e of G.ents) {
+    if (e.kind !== 'unit' || e.hp <= 0) continue;
+    mctx.fillStyle = e.team === 'p' ? (e.key === 'worker' ? '#c9e37a' : '#8fe3a8') : '#ff9c9c';
+    mctx.fillRect(e.x * k - 1.5, e.y * k - 1.5, 3, 3);
+  }
+  // 视野框
+  const vw = W / cam.zoom * k, vh = H / cam.zoom * k;
+  mctx.strokeStyle = '#ffffffcc'; mctx.lineWidth = 1.5;
+  mctx.strokeRect(cam.x * k, cam.y * k, vw, vh);
+}
+
+// ---------------------------------------------------------------------------
+//  HUD
+// ---------------------------------------------------------------------------
+let lastHud = 0;
+function updateHUD(force) {
+  const now = performance.now();
+  if (!force && now - lastHud < 90) return;
+  lastHud = now;
+  const P = G.team.p;
+  document.getElementById('rgold').textContent = Math.floor(P.gold);
+  document.getElementById('rpop').textContent = P.pop + '/' + P.popCap;
+  document.getElementById('rtime').textContent = fmtTime(G.t);
+  document.getElementById('rpop').style.color = P.pop >= P.popCap ? '#ff9c9c' : '#8fe3a8';
+  const head = document.getElementById('selhead');
+  const info = document.getElementById('selinfo');
+  const rows = document.getElementById('selrows');
+  const cmd = document.getElementById('cmd');
+  if (!G.sel.length) {
+    head.innerHTML = '<span class="team-p">未选择单位</span>';
+    info.textContent = '左键框选或点击我方单位 · H 全选部队 · E 工人回矿';
+    rows.style.display = 'none';
+    cmd.innerHTML = '<div class="gb"><h4>快捷操作</h4><div class="grid">' +
+      '<button class="btn" data-act="allsoldiers"><span class="nm">全选部队</span><span class="cst">H</span></button>' +
+      '<button class="btn" data-act="allworkers"><span class="nm">工人回矿</span><span class="cst">E</span></button>' +
+      '</div></div>';
+    return;
+  }
+  if (G.psel) {
+    const e = G.psel;
+    const tn = e.team === 'p' ? '<span class="team-p">我方</span>' : '<span class="team-e">敌方</span>';
+    head.innerHTML = labelOf(e) + ' · ' + tn;
+    const extra = e.kind === 'unit'
+      ? (e.key === 'worker' ? (e.carry > 0 ? '携带黄金中' : '空闲/待命') : '攻击 ' + Math.round(e.dmg) + ' · 射程 ' + Math.round(e.range / TS * 10) / 10 + ' 格')
+      : (e.done ? '已建成' : '建造中') + (e.queue.length ? ' · 队列 ' + e.queue.length : '');
+    info.textContent = extra;
+    rows.style.display = 'block';
+    rows.innerHTML =
+      '<div class="row"><span>生命</span><span>' + Math.ceil(e.hp) + ' / ' + Math.round(e.maxHp) + '</span></div>' +
+      (e.kind === 'building' ? '<div class="row"><span>人口提供</span><span>+' + (BUILDS[e.key].pop || 0) + '</span></div>' : '') +
+      (e.kind === 'unit' && e.key === 'worker' ? '<div class="row"><span>已运送次数</span><span>' + (e.resDeposited || 0) + '</span></div>' : '');
+  } else {
+    const counts = {};
+    for (const e of G.sel) counts[e.key] = (counts[e.key] || 0) + 1;
+    head.innerHTML = '<span class="team-p">已选择 ' + G.sel.length + ' 个单位</span>';
+    const parts = [];
+    for (const k in counts) parts.push((UNITS[k] ? UNITS[k].name : (BUILDS[k] ? BUILDS[k].name : k)) + ' ×' + counts[k]);
+    info.textContent = parts.join(' · ');
+    rows.style.display = 'none';
+  }
+  // 指令面板
+  let html = '';
+  const workers = G.sel.filter(e => e.kind === 'unit' && e.key === 'worker');
+  const hasB = G.sel.some(e => e.kind === 'building' && e.team === 'p');
+  const canBuild = workers.length > 0 || G.sel.some(e => e.kind === 'unit' && e.team === 'p');
+  if (canBuild) {
+    html += '<div class="gb"><h4>建造（快捷键 1-4）</h4><div class="grid">';
+    for (const bt of BUILDBTN) {
+      const bd = BUILDS[bt.key];
+      const afford = P.gold >= bd.cost;
+      let reason = '';
+      if (!workers.length) reason = '需要工人被选中（或场上有工人）';
+      html += '<button class="btn ' + (afford && workers.length ? '' : '') + '" data-build="' + bt.key + '"' +
+        (afford && (workers.length || G.ents.some(e => e.kind === 'unit' && e.key === 'worker' && e.team === 'p')) ? '' : ' disabled') +
+        ' title="' + bd.desc + '"><span class="nm">' + bd.name + '</span>' +
+        '<span class="cst' + (afford ? '' : ' no') + '">' + bd.cost + ' 金 · ' + bt.hot + '</span>' +
+        '<span class="sub">' + bd.desc + (reason ? ' · ' + reason : '') + '</span></button>';
+    }
+    html += '</div></div>';
+  }
+  // 生产
+  const producers = G.sel.filter(e => e.kind === 'building' && e.done && e.team === 'p' && PRODBTN[e.key]);
+  if (producers.length) {
+    const key = producers[0].key;
+    html += '<div class="gb"><h4>' + BUILDS[key].name + ' · 生产</h4><div class="grid">';
+    for (const pt of PRODBTN[key]) {
+      const ud = UNITS[pt.key];
+      const afford = P.gold >= ud.cost;
+      const popOk = P.pop + (ud.pop || 1) <= P.popCap;
+      const dis = (!afford || !popOk) ? ' disabled' : '';
+      html += '<button class="btn' + (pt.key === 'worker' ? '' : '') + '" data-prod="' + pt.key + '"' + dis +
+        ' title="' + ud.desc + '"><span class="nm">' + ud.name + '</span>' +
+        '<span class="cst' + (afford ? '' : ' no') + '">' + ud.cost + ' 金 · ' + pt.hot + '</span>' +
+        '<span class="sub">' + ud.hp + ' 生命 · ' + ud.dmg + ' 伤害 · ' + ud.desc + (popOk ? '' : ' · 人口已满') + '</span></button>';
+    }
+    html += '</div>';
+    if (producers[0].prod) {
+      const pr = producers[0];
+      const pct = clamp(pr.prodT / UNITS[pr.prod].btime, 0, 1) * 100;
+      html += '<div style="font-size:12px;color:#9fb5a8;margin-top:8px">正在生产 <b style="color:#ffd76a">' +
+        UNITS[pr.prod].name + '</b> ' + Math.round(pct) + '%（队列 ' + pr.queue.length + '）</div>' +
+        '<div style="height:6px;background:#1a2620;border-radius:3px;overflow:hidden;margin-top:4px">' +
+        '<div style="height:100%;width:' + pct + '%;background:linear-gradient(90deg,#4d9b6d,#8fe3a8)"></div></div>';
+    }
+    html += '</div>';
+  }
+  if (hasB && !producers.length) {
+    html += '<div class="gb"><div class="hint">右键点击地面可为该建筑设置 <b>集结点</b>（新单位出生后自动前往）。</div></div>';
+  }
+  if (workers.length) {
+    html += '<div class="gb"><div class="grid">' +
+      '<button class="btn" data-act="allworkers"><span class="nm">工人回矿</span><span class="cst">E</span>' +
+      '<span class="sub">所有工人恢复采集</span></button>' +
+      '<button class="btn" data-act="stop"><span class="nm">停止</span><span class="cst">S</span>' +
+      '<span class="sub">取消当前命令</span></button></div></div>';
+  }
+  cmd.innerHTML = html;
+}
+function fmtTime(t) {
+  const m = Math.floor(t / 60), s = Math.floor(t % 60);
+  return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+let logTimer = 0;
+function log(text, warn) {
+  const el = document.getElementById('trace');
+  el.innerHTML = warn ? '<span class="warn">' + text + '</span>' : text;
+  logTimer = 3;
+}
+
+// ---------------------------------------------------------------------------
+//  事件绑定
+// ---------------------------------------------------------------------------
+function resize() {
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  minicv.width = 196 * DPR; minicv.height = Math.round(196 * MAPH / MAPW) * DPR;
+  minicv.style.width = '196px'; minicv.style.height = Math.round(196 * MAPH / MAPW) + 'px';
+  clampCam();
+}
+function setupInput() {
+  cv.addEventListener('mousedown', e => {
+    const x = e.clientX, y = e.clientY;
+    if (e.button === 0) {
+      mouse.down = true; mouse.sx = x; mouse.sy = y; mouse.x = x; mouse.y = y;
+    } else if (e.button === 2) {
+      mouse.rdrag = true; mouse.sx = x; mouse.sy = y; mouse.x = x; mouse.y = y;
+    } else if (e.button === 1) {
+      mouse.mid = true; mouse.sx = x; mouse.sy = y;
+    }
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    const x = e.clientX, y = e.clientY;
+    if (mouse.down && !mouse.dragging && Math.hypot(x - mouse.sx, y - mouse.sy) > 6) mouse.dragging = true;
+    mouse.x = x; mouse.y = y;
+  });
+  window.addEventListener('mouseup', e => {
+    const x = e.clientX, y = e.clientY;
+    if (e.button === 0 && mouse.down) {
+      mouse.down = false;
+      if (mouse.dragging) {
+        mouse.dragging = false;
+        boxSelect(mouse.sx, mouse.sy, x, y);
+      } else {
+        clickSelect(x, y);
+      }
+    }
+    if (e.button === 2 && mouse.rdrag) {
+      mouse.rdrag = false;
+      if (Math.hypot(x - mouse.sx, y - mouse.sy) < 7 && !G.over) rightClick(x, y);
+    }
+    if (e.button === 1) mouse.mid = false;
+  });
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+  cv.addEventListener('wheel', e => {
+    const before = s2w(e.clientX, e.clientY);
+    const f = e.deltaY > 0 ? 1 / 1.15 : 1.15;
+    cam.zoom = clamp(cam.zoom * f, 0.45, 2.4);
+    const after = s2w(e.clientX, e.clientY);
+    cam.x += before.x - after.x;
+    cam.y += before.y - after.y;
+    clampCam();
+    e.preventDefault();
+  }, { passive: false });
+
+  minicv.addEventListener('mousedown', e => {
+    const r = minicv.getBoundingClientRect();
+    const k = MAPW / minicv.width;
+    const wx = (e.clientX - r.left) * minicv.width / r.width * k;
+    const wy = (e.clientY - r.top) * minicv.height / r.height * k;
+    cam.x = wx - W / cam.zoom / 2;
+    cam.y = wy - H / cam.zoom / 2;
+    clampCam();
+    e.preventDefault(); e.stopPropagation();
+  });
+  // 面板按钮
+  document.getElementById('cmdpanel').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || b.disabled || G.over) return;
+    if (b.dataset.build) {
+      G.placing = b.dataset.build;
+      G.attackMove = false;
+      log('左键点击地面放置 ' + BUILDS[b.dataset.build].name + '（Esc 取消，按住 Shift 可连续建造）');
+      updateHUD(true);
+      return;
+    }
+    if (b.dataset.prod) {
+      const key = b.dataset.prod;
+      const prod = G.sel.find(s => s.kind === 'building' && s.team === 'p' && s.done && PRODBTN[s.key]);
+      if (prod) {
+        const err = queueUnit(prod, key);
+        if (err) log(err, true); else log('已排入生产：' + UNITS[key].name);
+      }
+      updateHUD(true);
+      return;
+    }
+    if (b.dataset.act === 'allsoldiers') selectAllSoldiers();
+    if (b.dataset.act === 'allworkers') workersBack();
+    if (b.dataset.act === 'stop') {
+      for (const u of G.sel) {
+        if (u.kind !== 'unit') continue;
+        u.order = 'idle'; u.target = null; u.buildTarget = null; u.repairTarget = null;
+      }
+      log('已停止');
+    }
+    updateHUD(true);
+  });
+  // 顶栏
+  document.getElementById('btnPause').addEventListener('click', togglePause);
+  document.getElementById('btnSpeed').addEventListener('click', cycleSpeed);
+  document.getElementById('btnHelp').addEventListener('click', () => {
+    document.getElementById('startScreen').classList.remove('hidden');
+  });
+  document.getElementById('btnStart').addEventListener('click', () => {
+    document.getElementById('startScreen').classList.add('hidden');
+  });
+  document.getElementById('btnAgain').addEventListener('click', () => {
+    document.getElementById('endScreen').classList.add('hidden');
+    newGame();
+    cam.x = G.pbase.x - W / 2 / cam.zoom;
+    cam.y = G.pbase.y - H / 2 / cam.zoom;
+    clampCam();
+  });
+  window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].indexOf(e.code) >= 0) e.preventDefault();
+    if (e.code === 'Escape') { G.placing = null; G.attackMove = false; setSelection([]); }
+    if (G.over) return;
+    if (e.code === 'KeyA') { G.attackMove = true; G.placing = null; log('攻击移动：点击目标地点'); }
+    if (e.code === 'KeyS') {
+      for (const u of G.sel) { if (u.kind === 'unit') { u.order = 'idle'; u.target = null; u.buildTarget = null; u.repairTarget = null; } }
+    }
+    if (e.code === 'KeyH') selectAllSoldiers();
+    if (e.code === 'KeyE') workersBack();
+    if (e.code === 'KeyP') togglePause();
+    if (e.code === 'KeyC') { for (const b of G.sel) if (b.kind === 'building') b.rally = null; }
+    // 数字键
+    const num = e.code.startsWith('Digit') ? e.code.slice(5) : null;
+    if (num) {
+      const prodB = G.sel.find(s => s.kind === 'building' && PRODBTN[s.key]);
+      if (prodB) {
+        const pt = PRODBTN[prodB.key].find(x => x.hot === num);
+        if (pt) {
+          const err = queueUnit(prodB, pt.key);
+          if (err) log(err, true); else log('已排入生产：' + UNITS[pt.key].name);
+          updateHUD(true);
+          return;
+        }
+      }
+      const bt = BUILDBTN.find(x => x.hot === num);
+      if (bt && G.sel.some(s => s.kind === 'unit' && s.team === 'p')) {
+        G.placing = bt.key;
+        log('左键点击地面放置 ' + BUILDS[bt.key].name);
+        updateHUD(true);
+      }
+    }
+  });
+  window.addEventListener('keyup', e => { keys[e.code] = false; });
+  window.addEventListener('blur', () => { keys = Object.create(null); mouse.down = false; mouse.dragging = false; mouse.rdrag = false; mouse.mid = false; });
+  window.addEventListener('resize', resize);
+}
+function togglePause() {
+  G.paused = !G.paused;
+  const b = document.getElementById('btnPause');
+  b.textContent = G.paused ? '继续' : '暂停';
+  b.classList.toggle('on', G.paused);
+}
+function cycleSpeed() {
+  const arr = [1, 1.5, 2, 3];
+  const i = arr.indexOf(G.speed);
+  G.speed = arr[(i + 1) % arr.length];
+  document.getElementById('btnSpeed').textContent = '速度 ' + G.speed + '×';
+}
+function clickSelect(x, y) {
+  if (G.over) return;
+  const w = s2w(x, y);
+  if (G.attackMove) {
+    G.attackMove = false;
+    commandSelected(w.x, w.y, true);
+    return;
+  }
+  if (G.placing) { tryPlaceAt(w.x, w.y); return; }
+  const ent = pickAt(w.x, w.y);
+  if (ent) {
+    if (keys.ShiftLeft && G.sel.indexOf(ent) < 0 && ent.team === 'p') {
+      setSelection(G.sel.concat([ent]));
+    } else {
+      setSelection([ent]);
+    }
+  } else {
+    if (!keys.ShiftLeft) setSelection([]);
+  }
+}
+function boxSelect(x1, y1, x2, y2) {
+  if (G.over) return;
+  const a = s2w(x1, y1), b = s2w(x2, y2);
+  const rx = Math.min(a.x, b.x), ry = Math.min(a.y, b.y);
+  const rw = Math.abs(a.x - b.x), rh = Math.abs(a.y - b.y);
+  const found = [];
+  for (const e of G.ents) {
+    if (e.hp <= 0 || e.team !== 'p') continue;
+    if (e.kind === 'unit') {
+      if (e.x >= rx && e.x <= rx + rw && e.y >= ry && e.y <= ry + rh) found.push(e);
+    }
+  }
+  if (!found.length) {
+    for (const e of G.ents) {
+      if (e.hp <= 0 || e.team !== 'p' || e.kind !== 'building') continue;
+      if (e.x >= rx && e.x <= rx + rw && e.y >= ry && e.y <= ry + rh) { found.push(e); break; }
+    }
+  }
+  // 优先选中作战单位
+  const combat = found.filter(u => u.key !== 'worker');
+  setSelection(combat.length ? combat : found);
+  if (found.length) log('已选择 ' + (combat.length ? combat.length : found.length) + ' 个单位');
+}
+function rightClick(x, y) {
+  if (G.placing) { G.placing = null; log('已取消建造'); return; }
+  if (G.attackMove) { G.attackMove = false; return; }
+  const w = s2w(x, y);
+  commandSelected(w.x, w.y, false);
+}
+
+// ---------------------------------------------------------------------------
+//  启动
+// ---------------------------------------------------------------------------
+function boot() {
+  resize();
+  buildTerrain();
+  newGame();
+  cam.zoom = 1;
+  cam.x = G.pbase.x - W / 2;
+  cam.y = G.pbase.y - H / 2;
+  clampCam();
+  setupInput();
+  log('工人已就位：右键点金矿开始采集，造兵营爆兵推平红色基地。', false);
+  requestAnimationFrame(frame);
+}
+boot();
+})();
+</script>
+</body>
+</html>
